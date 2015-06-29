@@ -1,5 +1,6 @@
 package com.example.vincent.spotifystreamer;
 
+import android.content.Intent;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
@@ -9,14 +10,13 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
-import android.widget.ArrayAdapter;
+import android.widget.AdapterView;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import kaaes.spotify.webapi.android.SpotifyApi;
@@ -35,7 +35,15 @@ public class MainActivityFragment extends Fragment {
     // the search query that users input
     String artistSearchQuery;
     // the adapter for the artist listView
-    ArrayAdapter<String> artistAdapter;
+    ArtistAdapter mArtistAdapter;
+    // list view of the artists
+    ListView artistListView;
+    // List of Artists
+    ArrayList<ArtistInfo> artistList;
+    // Default image if artist image isn't available
+    String DEFAULT_IMAGE = "http://cdn.photoaffections.com/images/icon-profile.png";
+    // Intent Put Extra Artist ID Key
+    public static final String ID_KEY = "spotifystreamer.artist.ID";
 
     public MainActivityFragment() {
     }
@@ -46,7 +54,7 @@ public class MainActivityFragment extends Fragment {
         View rootView = inflater.inflate(R.layout.fragment_main, container, false);
 
         // get the list view displaying the list of artists
-        ListView artistListView = (ListView)rootView.findViewById(R.id.artist_listview);
+        artistListView = (ListView)rootView.findViewById(R.id.artist_listview);
 
         // initialize connection to spotify api
         connectToSpotify();
@@ -70,25 +78,36 @@ public class MainActivityFragment extends Fragment {
                 return handled;
             }
         });
-        // TODO: GET IMAGE ICONS TO SHOW RIGHT ICON
 
-        // temporary data
-        String[] tempData = {"Coldplay", "Taylor Swift", "Parachute"};
-        ArrayList<String> artistData = new ArrayList<>(Arrays.asList(tempData));
+        // a filler Artist
+        ArrayList<ArtistInfo> test = new ArrayList<>();
+        ArtistInfo temp = new ArtistInfo("Maroon 5", DEFAULT_IMAGE, "1");
+        test.add(temp);
+        // Create the adapter
+        mArtistAdapter = new ArtistAdapter(
+                getActivity().getBaseContext(),
+                R.layout.list_item_artists,
+                test);
+        // set the adapter to create the list views
+        artistListView.setAdapter(mArtistAdapter);
+        artistListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                ArtistInfo aInfo = mArtistAdapter.getItem(position);
+                String artistID = aInfo.getArtistId();
 
-        if(artistData != null) {
-            artistAdapter = new ArrayAdapter<String>(
-                    getActivity(),
-                    R.layout.list_item_artists,
-                    R.id.artist_name_text,
-                    artistData
-            );
-            artistListView.setAdapter(artistAdapter);
-        }
+                Intent intent = new Intent(getActivity(), TopTracks.class);
+                intent.putExtra(ID_KEY, artistID);
+                startActivity(intent);
+            }
+        });
 
         return rootView;
     }
 
+    /**
+     * Connects to the spotify api using the wrapper
+     */
     public void connectToSpotify(){
         // connect to the spotify API with the wrapper
         SpotifyApi api = new SpotifyApi();
@@ -96,21 +115,39 @@ public class MainActivityFragment extends Fragment {
         mSpotifyService = api.getService();
     }
 
+    /**
+     * FetchArtistTask retrieves artist data in the backgroud
+     * Takes in a string (artist name) and returns an list of artist data
+     */
+    public class FetchArtistTask extends AsyncTask<String, Void, ArrayList<ArtistInfo>> {
 
-    public class FetchArtistTask extends AsyncTask<String, Void, String[]> {
         @Override
-        protected String[] doInBackground(String... params) {
+        protected ArrayList<ArtistInfo> doInBackground(String... params) {
             try {
-                ArrayList<String> artistNameList = new ArrayList<>();
+                ArrayList<ArtistInfo> artistList = new ArrayList<>();
                 ArtistsPager results = mSpotifyService.searchArtists(params[0]);
                 List<Artist> artistsFound = results.artists.items;
 
                 if (artistsFound != null) {
                     for (Artist artist : artistsFound) {
-                        artistNameList.add(artist.name);
+                        // retrieve the parameters for each artist
+                        String artistImageURL;
+
+                        if(artist.images.size() != 0) {
+                            artistImageURL = artist.images.get(0).url;
+                        } else {
+                            artistImageURL = DEFAULT_IMAGE;
+                        }
+                        String artistName = artist.name;
+                        String artistID = artist.id;
+
+                        // load artist object with the data and insert into the list
+                        ArtistInfo aInfo = new ArtistInfo(artistName, artistImageURL, artistID);
+                        artistList.add(aInfo);
+
                         Log.d("ARTISTS", "ARTISTS: " + artist.name);
                     }
-                    return listToArray(artistNameList);
+                    return artistList;
 
                 } else {
                     Toast.makeText(getActivity().getBaseContext(), "No Results Found",
@@ -119,24 +156,19 @@ public class MainActivityFragment extends Fragment {
             }catch (Exception e){
                 Log.d("exception", e.toString());
             }
-
             return null;
         }
 
         @Override
-        protected void onPostExecute(String[] strings) {
-            if(strings != null){
-                artistAdapter.clear();
-                for(String artist : strings){
-                    artistAdapter.add(artist);
+        protected void onPostExecute(ArrayList<ArtistInfo> artistInfoArrayList) {
+
+            if(artistInfoArrayList != null){
+                artistList = artistInfoArrayList;
+                mArtistAdapter.clear();
+                for(ArtistInfo artistInfo : artistInfoArrayList){
+                    mArtistAdapter.add(artistInfo);
                 }
             }
-        }
-
-        private String[] listToArray(ArrayList<String> list){
-            String[] arrayList = new String[list.size()];
-            arrayList = list.toArray(arrayList);
-            return arrayList;
         }
     }
 }
