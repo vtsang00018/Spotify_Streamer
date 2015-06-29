@@ -3,13 +3,13 @@ package com.example.vincent.spotifystreamer;
 /**
  * Created by Vincent on 6/29/2015.
  */
-public class Artist {
+public class ArtistInfo {
 
     private String artistId;
     private String name;
     private String imageUrl;
 
-    public Artist(String name, String imageUrl, String artistId) {
+    public ArtistInfo(String name, String imageUrl, String artistId) {
         this.artistId = artistId;
         this.name = name;
         this.imageUrl = imageUrl;
